@@ -1,47 +1,37 @@
 #include "FaceDetector.hpp"
+#include "FaceEncoder.hpp"
 #include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
 #include <iostream>
 
 int main(int argc, char** argv)
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        std::cout << "Использование: faceRecognition <фото>\n";
+        std::cout << "Использование: faceRecognition <фото1> <фото2>\n";
         return 1;
     }
     try 
     {
         FaceDetector detector("models/face_detection_yunet_2023mar.onnx");
-        cv::Mat img = cv::imread(argv[1]);
-        if (img.empty())
-        {
-            std::cerr << "Нет файла\n";
-            return 1;
-        }
-        cv::Mat faces = detector.detect(img);
-        std::cout << "Найдено лиц: " << faces.rows << "\n";
+        FaceEncoder encoder("models/face_recognition_sface_2021dec.onnx");
 
-        for (int i = 0; i < faces.rows; ++i)
-        {
-            cv::Rect box(faces.at<float>(i, 0), faces.at<float>(i, 1),
-                        faces.at<float>(i, 2), faces.at<float>(i, 3));
-            cv::rectangle(img, box, {0, 200, 0}, 2);
-            for (int p = 0; p < 5; ++p) // 5 ключевых точек
-            {
-                cv::circle(img, {int(faces.at<float>(i, 4 + 2 * p)),
-                                int(faces.at<float>(i, 5 + 2 * p))}, 3, {0, 0, 255}, -1);
-            }
-        }
+        cv::Mat a = cv::imread(argv[1]), b = cv::imread(argv[2]);
+        if (a.empty()) { std::cerr << "Не загрузилось: " << argv[1] << "\n"; return 1; }
+        if (b.empty()) { std::cerr << "Не загрузилось: " << argv[2] << "\n"; return 1; }
 
-        cv::imshow("Detect", img);
-        cv::waitKey(0);
+        std::cout << argv[1] << ": " << a.cols << "x" << a.rows << "\n";
+        std::cout << argv[2] << ": " << b.cols << "x" << b.rows << "\n";
+
+        cv::Mat fa, fb;
+        if (!detector.detectBest(a, fa)) { std::cerr << "Лицо не найдено: " << argv[1] << "\n"; return 1; }
+        if (!detector.detectBest(b, fb)) { std::cerr << "Лицо не найдено: " << argv[2] << "\n"; return 1; }
+    
+    double s = encoder.similarity(encoder.encode(a, fa), encoder.encode(b, fb));
+    std::cout << "Схожесть: " << s << (s >= 0.363 ? " -> один человек\n" : " -> разные люди\n");
     }
     catch (const std::exception& e)
     {
         std::cerr << e.what() << "\n";
         return 2;
     }
-    
 }

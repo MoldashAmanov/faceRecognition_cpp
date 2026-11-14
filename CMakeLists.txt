@@ -18,6 +18,7 @@ message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
 set(SOURCES
     src/main.cpp
     src/FaceDetector.cpp
+    src/FaceEncoder.cpp
 
 )
 
