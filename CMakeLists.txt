@@ -19,6 +19,8 @@ set(SOURCES
     src/main.cpp
     src/FaceDetector.cpp
     src/FaceEncoder.cpp
+    src/Gallery.cpp
+    src/FaceMatcher.cpp
 
 )
 

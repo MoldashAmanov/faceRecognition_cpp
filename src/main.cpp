@@ -1,37 +1,63 @@
 #include "FaceDetector.hpp"
 #include "FaceEncoder.hpp"
+#include "Gallery.hpp"
+#include "FaceMatcher.hpp"
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+#include <iomanip>
 #include <iostream>
 
 int main(int argc, char** argv)
 {
     if (argc < 3)
     {
-        std::cout << "Использование: faceRecognition <фото1> <фото2>\n";
+        std::cout << "Использование: faceRecognition <query.jpg> <папка галереи> [результат.jpg]\n";
         return 1;
     }
+
+    const std::string queryPath = argv[1], galleryDir = argv[2];
+    const std::string outPath = argc > 3 ? argv[3] : "result.jpg";
+
     try 
     {
         FaceDetector detector("models/face_detection_yunet_2023mar.onnx");
         FaceEncoder encoder("models/face_recognition_sface_2021dec.onnx");
 
-        cv::Mat a = cv::imread(argv[1]), b = cv::imread(argv[2]);
-        if (a.empty()) { std::cerr << "Не загрузилось: " << argv[1] << "\n"; return 1; }
-        if (b.empty()) { std::cerr << "Не загрузилось: " << argv[2] << "\n"; return 1; }
+        cv::Mat query = cv::imread(queryPath);
+        if (query.empty())
+            throw std::runtime_error("Не удалось открыть " + queryPath);
 
-        std::cout << argv[1] << ": " << a.cols << "x" << a.rows << "\n";
-        std::cout << argv[2] << ": " << b.cols << "x" << b.rows << "\n";
+        cv::Mat queryFace;
+        if (!detector.detectBest(query, queryFace))
+        {
+            std::cout << "На запросном фото лицо не найдено\n";
+            return 2;
+        }
+        cv::Mat queryFeature = encoder.encode(query, queryFace);
 
-        cv::Mat fa, fb;
-        if (!detector.detectBest(a, fa)) { std::cerr << "Лицо не найдено: " << argv[1] << "\n"; return 1; }
-        if (!detector.detectBest(b, fb)) { std::cerr << "Лицо не найдено: " << argv[2] << "\n"; return 1; }
-    
-    double s = encoder.similarity(encoder.encode(a, fa), encoder.encode(b, fb));
-    std::cout << "Схожесть: " << s << (s >= 0.363 ? " -> один человек\n" : " -> разные люди\n");
+        Gallery gallery(detector, encoder);
+        size_t n = gallery.load(galleryDir);
+        std::cout << "В галереи лиц: " << n << ", пропущено файлов: " << gallery.skipped().size() << "\n\n";
+
+        FaceMatcher matcher(encoder, gallery);
+        auto results = matcher.match(queryFeature);
+
+        std::cout << std::fixed << std::setprecision(3);
+        for (const auto& r : results)
+        {
+            std::cout << (r.isMatch ? "[СОВПАДЕНИЕ ]" : "[нет]       ") << r.score << "   " << r.path << "\n";
+        }
+        bool found = !results.empty() && results.front().isMatch;
+        cv::Rect box(queryFace.at<float>(0, 0), queryFace.at<float>(0, 1),
+                    queryFace.at<float>(0, 2), queryFace.at<float>(0, 3));
+        cv::rectangle(query, box, found ? cv::Scalar(0, 200, 0) : cv::Scalar(0, 0, 220), 2);
+        cv::imwrite(outPath, query);
+        std::cout << "\nРезультат сохранен в " << outPath << "\n";
     }
     catch (const std::exception& e)
     {
-        std::cerr << e.what() << "\n";
-        return 2;
+        std::cerr << "Ошибка: " << e.what() << "\n";
+        return 3;
     }
+    return 0;
 }
