@@ -21,6 +21,7 @@ set(SOURCES
     src/FaceEncoder.cpp
     src/Gallery.cpp
     src/FaceMatcher.cpp
+    src/VideoMatcher.cpp
 
 )
 
